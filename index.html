@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>制約ガチャ</title>
+<!-- 検索結果やSNSで表示される説明文 -->
+<meta name="description" content="「誰に」「課題」をガチャで引いて、3分で解決策のアイデアを1つ考える発想トレーニング。お題と一緒にメモを残せます。">
+<!-- OGP：XやLINEにURLを貼ったときのカード表示用の情報 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="制約ガチャ｜お題を引いて、3分でアイデアを1つ">
+<meta property="og:description" content="「誰に」「課題」をガチャで引いて、3分で解決策のアイデアを1つ考える発想トレーニング。">
+<meta property="og:url" content="https://idea-omega-six.vercel.app/">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
+<!-- スマホのブラウザのバーの色 -->
+<meta name="theme-color" content="#e0453a">
+<!-- ファビコン：画像ファイルを使わず、カプセルのSVGをそのまま埋め込む -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23fff' stroke='%232b2340' stroke-width='5'/%3E%3Cpath d='M4 32a28 28 0 0 1 56 0z' fill='%23e0453a' stroke='%232b2340' stroke-width='5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#e8f0f6; --panel:#ffffff; --ink:#2b2340; --soft:#6f6a80; --line:#d7dfe8;
+    --red:#e0453a; --red-dark:#b8342b; --clear:#f3f8fc;
+    --who:#f6c23e; --prob:#4a90e2; --rule:#f2709c;
+    --display:"Dela Gothic One","Zen Maru Gothic",sans-serif;
+    --ui:"Zen Maru Gothic",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1d2030; --panel:#282c3f; --ink:#ece9f5; --soft:#a6a2b8; --line:#3a3f57; --clear:#323850;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-weight:500;line-height:1.7}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 16px 96px;
+    overflow-x:clip} /* スマホで開いたカプセルのフタが右にはみ出し、横スクロールが出るのを防ぐ */
+  :focus-visible{outline:3px solid var(--prob);outline-offset:3px;border-radius:6px}
+
+  /* 冒頭の説明（初めて来た人向け） */
+  .intro{text-align:center;margin:0 0 32px}
+  .intro h1{font-family:var(--display);font-weight:400;font-size:clamp(24px,5vw,34px);line-height:1.4;margin:0 0 8px}
+  .intro .lead{margin:0 auto;max-width:560px;color:var(--soft);font-size:15px}
+  .steps{list-style:none;padding:0;margin:20px auto 0;display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+  .steps li{display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:99px;padding:6px 16px 6px 6px;font-weight:700;font-size:14px}
+  .steps .n{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--red);color:#fff;font-family:var(--display);font-size:13px}
+  .privacy{margin:14px 0 0;font-size:12px;color:var(--soft)}
+
+  /* ステージ：機械 + カプセル */
+  .stage{display:grid;grid-template-columns:320px 1fr;gap:28px;align-items:start}
+  .machine{position:relative}
+  .machine svg{width:100%;height:auto;display:block;overflow:visible}
+  .m-ink{stroke:#2b2340;stroke-width:3.5}
+  #handle{transform-box:fill-box;transform-origin:center;cursor:pointer;transition:transform .7s cubic-bezier(.5,0,.3,1)}
+  #handle:hover circle{fill:#fff}
+  #pile.shake{animation:shake .7s ease-in-out}
+  @keyframes shake{20%{transform:translate(-4px,-3px) rotate(-1deg)}40%{transform:translate(4px,-1px) rotate(1deg)}60%{transform:translate(-3px,-2px)}80%{transform:translate(2px,0)}}
+  .under{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:14px}
+  .spin{font-family:var(--ui);font-weight:900;font-size:18px;color:#fff;background:var(--red);border:none;border-radius:99px;padding:12px 34px;cursor:pointer;box-shadow:0 4px 0 var(--red-dark)}
+  .spin:active{transform:translateY(3px);box-shadow:0 1px 0 var(--red-dark)}
+  .spin:disabled{opacity:.6;cursor:default}
+  .rule-toggle{display:inline-flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+  .rule-toggle input{width:18px;height:18px;accent-color:var(--rule);margin:0}
+  .pool{font-size:12px;color:var(--soft)}
+
+  .tray{background:var(--panel);border-radius:28px;padding:18px 18px 10px;display:grid;grid-template-columns:repeat(2,1fr);gap:4px 12px}
+  .tray.has-rule{grid-template-columns:repeat(2,1fr)}
+
+  /* カプセル */
+  .cap{--c:var(--who);position:relative;height:236px}
+  .cap[data-k=prob]{--c:var(--prob)} .cap[data-k=rule]{--c:var(--rule)}
+  .bowl{position:absolute;left:50%;bottom:40px;width:136px;height:68px;margin-left:-68px;border-radius:0 0 68px 68px;background:var(--clear);border:3.5px solid #2b2340;z-index:2;overflow:hidden}
+  .bowl::after{content:"";position:absolute;left:18px;bottom:12px;width:30px;height:10px;border-radius:0 0 30px 30px;border-bottom:3px solid rgba(255,255,255,.9)}
+  .lid{position:absolute;left:50%;top:60px;width:136px;height:68px;margin-left:-68px;border-radius:68px 68px 0 0;background:var(--c);border:3.5px solid #2b2340;z-index:0;
+    transform:translate(62px,-56px) rotate(32deg);transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+  .lid::after{content:"";position:absolute;left:22px;top:14px;width:22px;height:12px;border-radius:12px 12px 0 0;border-top:3px solid rgba(255,255,255,.7)}
+  .slip{position:absolute;left:6px;right:6px;bottom:88px;min-height:104px;background:#fff;color:#2b2340;border:2.5px solid #2b2340;border-radius:8px;padding:8px 12px 22px;z-index:1;
+    transition:transform .4s cubic-bezier(.3,1.4,.5,1) .12s,opacity .2s .12s}
+  .kind{display:inline-block;font-size:12px;font-weight:700;background:var(--c);color:#2b2340;border-radius:99px;padding:1px 10px}
+  .val{display:block;font-weight:900;font-size:20px;line-height:1.4;margin-top:6px;word-break:keep-all;overflow-wrap:anywhere}
+  .keep{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);font:inherit;font-size:13px;font-weight:700;color:var(--soft);background:transparent;border:2px solid var(--line);border-radius:99px;padding:2px 14px;cursor:pointer;z-index:3;white-space:nowrap;background:var(--panel)}
+  .keep:disabled{opacity:.4;cursor:default}
+  .cap.kept .keep{background:#2b2340;border-color:#2b2340;color:#fff}
+  .cap.kept .slip::after{content:"キープ";position:absolute;right:-8px;top:-12px;background:var(--red);color:#fff;font-size:11px;font-weight:900;padding:2px 8px;border-radius:4px;transform:rotate(8deg)}
+  /* 閉じた状態 */
+  .cap.shut .lid{transform:none;transition-duration:.25s}
+  .cap.shut .slip{transform:translateY(70px) scaleY(.2);opacity:0;transition-delay:0s}
+  .cap.shut.wobble .lid,.cap.shut.wobble .bowl{animation:wob .5s ease-in-out infinite}
+  @keyframes wob{25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
+
+  /* ノート */
+  .panel{background:var(--panel);border-radius:28px;padding:24px 26px;margin-top:28px}
+  .head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:14px}
+  .combo{margin:0;font-size:19px;font-weight:700;line-height:1.8}
+  .combo.wait{color:var(--soft);font-weight:500}
+  .combo b{font-weight:900;padding:0 2px;background:linear-gradient(transparent 60%,var(--m) 60%)}
+  .timer{text-align:center;flex-shrink:0}
+  .time{font-family:var(--display);font-size:32px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .time.warn{color:var(--red)}
+  .tctl{display:flex;gap:6px;margin-top:6px}
+  select,.mini{font-family:var(--ui);font-weight:700;font-size:13px;border-radius:99px;padding:4px 12px;cursor:pointer}
+  select{border:2px solid var(--line);background:var(--panel);color:var(--ink)}
+  .mini{border:none;background:var(--ink);color:var(--panel)}
+  .field{width:100%;font-family:var(--ui);color:var(--ink);background:var(--bg);border:2.5px solid transparent;border-radius:16px;padding:12px 16px}
+  .field:focus{outline:none;border-color:var(--ink)}
+  .field::placeholder{color:var(--soft)}
+  textarea.field{min-height:150px;font-size:15px;resize:vertical;line-height:1.8}
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+  .hint{display:flex;align-items:center;gap:10px;flex:1;min-width:220px}
+  .hint-btn{font:inherit;font-weight:700;font-size:14px;color:var(--ink);background:none;border:2px dashed var(--line);border-radius:99px;padding:5px 14px;cursor:pointer;white-space:nowrap}
+  .hint-btn:hover{border-color:var(--ink)}
+  #hintText{font-weight:700;font-size:14px}
+  .save{font-family:var(--ui);font-weight:900;font-size:15px;color:#fff;background:var(--red);border:none;border-radius:99px;padding:10px 26px;cursor:pointer;box-shadow:0 3px 0 var(--red-dark)}
+  .save:active{transform:translateY(2px);box-shadow:0 1px 0 var(--red-dark)}
+  .kbd{font-size:12px;color:var(--soft);margin-right:10px}
+
+  .pills{display:flex;flex-wrap:wrap;gap:6px}
+  .pill{font-size:12px;font-weight:700;color:#2b2340;border-radius:99px;padding:2px 10px}
+  .pill.who{background:var(--who)} .pill.prob{background:var(--prob);color:#fff} .pill.rule{background:var(--rule);color:#fff}
+
+  h2{font-family:var(--display);font-weight:400;font-size:24px;margin:52px 0 16px}
+  h2 small{font-family:var(--ui);font-size:14px;color:var(--soft);margin-left:8px}
+  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .entry{background:var(--panel);border-radius:22px;padding:18px;display:flex;flex-direction:column}
+  .entry .pills{margin-bottom:10px}
+  .entry p{margin:0;font-size:14px;white-space:pre-wrap}
+  .meta{display:flex;justify-content:space-between;margin-top:auto;padding-top:12px;font-size:12px;color:var(--soft)}
+  .del{font:inherit;background:none;border:none;color:var(--soft);cursor:pointer;text-decoration:underline}
+  .del:hover{color:var(--red)}
+  .blank{grid-column:1/-1;color:var(--soft);text-align:center;padding:28px;border:2.5px dashed var(--line);border-radius:22px;margin:0}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--panel);font-weight:700;padding:8px 20px;border-radius:99px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:calc(100% - 32px)}
+  .toast.show{opacity:1}
+
+  @media (max-width:760px){
+    .stage{grid-template-columns:1fr}
+    .machine{max-width:250px;margin:0 auto}
+    .tray{padding:14px 8px 8px;gap:4px 6px}
+    .cap{height:214px}
+    .bowl,.lid{width:112px;height:56px;margin-left:-56px}
+    .bowl{border-radius:0 0 56px 56px;bottom:38px}
+    .lid{border-radius:56px 56px 0 0;top:66px;transform:translate(46px,-60px) rotate(32deg)}
+    .slip{bottom:78px;min-height:96px;padding:6px 8px 18px}
+    .val{font-size:16px}
+    .keep{font-size:12px;padding:1px 10px}
+    .head{flex-direction:column}
+    .timer{display:flex;align-items:center;gap:12px}
+    .tctl{margin:0}
+    .panel{padding:20px 16px}
+  }
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- 冒頭の説明：何をするツールか＋遊び方3ステップ -->
+  <header class="intro">
+    <h1>お題を引いて、3分でアイデアを1つ。</h1>
+    <p class="lead">「誰に」「課題」をガチャで決めて、その人の困りごとを解決するアイデアを考える発想トレーニングです。解決のしかたは自由。思いがけない組み合わせほど、いいアイデアが出るかも。</p>
+    <ol class="steps">
+      <li><span class="n">1</span>ハンドルを回す</li>
+      <li><span class="n">2</span>3分で考えて書く</li>
+      <li><span class="n">3</span>メモに残す</li>
+    </ol>
+    <p class="privacy">保存したアイデアはこのブラウザの中だけに残ります（どこにも送信されません）</p>
+  </header>
+
+  <div class="stage">
+    <div class="machine">
+      <svg viewBox="0 0 300 450" role="img" aria-label="ガチャガチャの機械">
+        <defs><clipPath id="domeClip"><circle cx="150" cy="172" r="110"/></clipPath></defs>
+        <!-- 台紙 -->
+        <rect x="34" y="2" width="232" height="58" rx="12" fill="#fff" class="m-ink"/>
+        <text x="150" y="43" text-anchor="middle" font-family="Dela Gothic One, sans-serif" font-size="30" fill="#2b2340">制約ガチャ</text>
+        <!-- ドーム -->
+        <circle cx="150" cy="172" r="110" fill="#f3f8fc"/>
+        <g clip-path="url(#domeClip)"><g id="pile"></g></g>
+        <circle cx="150" cy="172" r="110" fill="none" class="m-ink"/>
+        <path d="M78 120 A86 86 0 0 1 128 82" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" opacity=".9"/>
+        <!-- 本体 -->
+        <rect x="30" y="250" width="240" height="180" rx="20" fill="#e0453a" class="m-ink"/>
+        <rect x="52" y="272" width="92" height="56" rx="8" fill="#fff" class="m-ink"/>
+        <text x="98" y="294" text-anchor="middle" font-family="Zen Maru Gothic, sans-serif" font-weight="700" font-size="13" fill="#2b2340">1回</text>
+        <text id="price" x="98" y="320" text-anchor="middle" font-family="Dela Gothic One, sans-serif" font-size="22" fill="#2b2340">3分</text>
+        <g id="handle" role="button" tabindex="0" aria-label="ハンドルを回す">
+          <circle cx="212" cy="300" r="32" fill="#f4f4f4" class="m-ink"/>
+          <rect x="182" y="292" width="60" height="16" rx="8" fill="#fff" class="m-ink"/>
+          <circle cx="212" cy="300" r="5" fill="#2b2340"/>
+        </g>
+        <rect x="104" y="350" width="92" height="60" rx="12" fill="#2b2340"/>
+        <rect x="112" y="356" width="76" height="20" rx="6" fill="#4a3f63"/>
+        <rect x="44" y="428" width="212" height="14" rx="5" fill="#2b2340"/>
+      </svg>
+      <div class="under">
+        <button class="spin" id="spin">ハンドルを回す</button>
+        <label class="rule-toggle"><input type="checkbox" id="ruleOn">縛りカプセルも出す</label>
+        <span class="pool" id="pool"></span>
+      </div>
+    </div>
+
+    <div class="tray" id="tray"></div>
+  </div>
+
+  <section class="panel">
+    <div class="head">
+      <p class="combo wait" id="combo">ハンドルを回すと、カプセルからお題が出てきます</p>
+      <div class="timer">
+        <div class="time" id="time">3:00</div>
+        <div class="tctl">
+          <select id="minutes" aria-label="制限時間"><option value="60">1分</option><option value="180" selected>3分</option><option value="300">5分</option></select>
+          <button class="mini" id="startBtn">スタート</button>
+        </div>
+      </div>
+    </div>
+    <!-- メモ欄：お題（誰に・課題）と一緒に保存される -->
+    <textarea class="field" id="memo" aria-label="メモ" placeholder="思いついたことをメモしよう（どんな場面で困ってる？どう解決する？）"></textarea>
+    <div class="foot">
+      <div class="hint"><button class="hint-btn" id="hintBtn">ヒントを見る</button><span id="hintText"></span></div>
+      <div><span class="kbd">Ctrl+Enter でも保存</span><button class="save" id="save">保存する</button></div>
+    </div>
+  </section>
+
+  <h2>メモ<small id="count"></small></h2>
+  <div class="list" id="list"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// ===== ガチャの中身（お題リスト） =====
+// 表示は「〇〇(who)の『△△(prob)』を解決する。ただし、◇◇(rule)。」
+// 解決のしかた（手段）はあえて決めず、自分で考える部分にしている。
+// という1文になるので、どれを組み合わせても自然に読める言い回しにそろえている。
+// お題を足したいときは、各配列に文字列を1つ追加するだけでOK。
+const BASE = {
+  who:{label:"誰に",items:[
+    // 学生・若者
+    "中学生","高校生","受験生","大学生","留学生","就活生","新入社員","サークルの幹事","バイトリーダー","一人暮らしを始めた学生",
+    // 家族・暮らし
+    "共働き夫婦","新米パパママ","小学生の親","シングルマザー・ファザー","双子の親","アレルギーのある子の親","祖父母と同居する家族","子どもが巣立った夫婦","遠距離恋愛中のカップル","ひとりっ子","ペット飼い主","保護犬を迎えたばかりの人","家族を介護している人",
+    // 働き方
+    "一人暮らしの社会人","転勤族","単身赴任中の人","フリーランス","テレワーク中の人","夜勤のある人","副業を始めたい会社員","定年したばかりの人","中小企業の社長",
+    // 仕事・職業
+    "保育士","看護師","小学校の先生","部活の顧問","農家","漁師","タクシー運転手","配達員","美容師","小さな飲食店の店主","商店街の店主","図書館の司書",
+    // 地域・まち
+    "地方に住む人","引っ越したばかりの人","町内会の役員","外国人観光客","日本語を勉強中の人","初めて日本に住む人","離島に住む人",
+    // 体・からだの事情
+    "高齢者","車いすユーザー","目が見えにくい人","耳が聞こえにくい人","妊娠中の人","けがで松葉づえの人","花粉症の人",
+    // 趣味・こだわり
+    "推し活中の人","筋トレ初心者","ダイエット中の人","登山好き","キャンプ初心者","古着好き","読書好き","ゲーム実況者","趣味で音楽を作る人","料理が苦手な人","植物を育てている人","初めて車を買う人"
+  ]},
+  prob:{label:"課題",items:[
+    // 時間・習慣
+    "時間がない","続かない","朝起きられない","寝つけない","締め切りギリギリになる","スマホを見すぎる","やる気が出ない","やめたい習慣がやめられない","運動不足","水を飲み忘れる","薬を飲み忘れる","ゴミの日を忘れる","自炊が続かない",
+    // 記憶・整理
+    "すぐ忘れる","物をなくす","片付けられない","いらない物を捨てられない","積読がたまる","撮った写真を見返さない","サブスクを解約し忘れる","人の名前を覚えられない",
+    // 判断・情報
+    "なかなか決められない","情報が多すぎる","誰に聞けばいいか分からない","手続きが面倒","服選びに迷う","プレゼントが決まらない","ゴミの分別が分からない","道に迷う","待ち時間が長い",
+    // お金
+    "お金が足りない","家計を把握できない","割り勘が面倒","食材を余らせる",
+    // 人とのつながり
+    "孤独を感じる","相談相手がいない","悩みを人に言えない","初対面が苦手","話のネタがない","返信が遅れがち","お礼を言いそびれる","家族と会話が少ない","家事の分担でもめる","予定が合わない","趣味仲間がいない","近所に知り合いがいない","言葉が通じない","頼まれると断れない",
+    // 気持ち・自信
+    "失敗が怖い","人と比べて落ち込む","褒められる機会がない","成長を実感できない","自分の好きが分からない","作ったものを見てもらえない","人前で話すのが苦手",
+    // 体・環境
+    "食事が偏る","姿勢が悪い","目が疲れる","季節を感じられない","雨の日にやることがない","災害への備えがない"
+  ]},
+  rule:{label:"縛り",items:[
+    // 操作をしぼる
+    "画面なし","ボタンは1つだけ","1タップで完結","文字入力禁止","音だけで完結","写真1枚で始まる","30秒で使い終わる","説明書なしで使える","登録不要",
+    // 使える回数・時間・場所
+    "1日1回しか開けない","通知は1日1回まで","夜しか使えない","外出先でしか使えない","1週間で終わる","毎日5分だけ","オフラインで動く",
+    // 人との関わり
+    "必ず誰かとつながる","3人以上で使う","会話しないと進まない","お年寄りと子どもが一緒に使う","お金を払う人と使う人が違う",
+    // 誰でも使える
+    "子どもでも使える","おじいちゃんでも使える","スマホを持っていない人も使える","他人に見られても恥ずかしくない",
+    // 作り方・お金
+    "広告なしで無料","予算1万円で作る","明日から始められる","紙と組み合わせる","色は2色だけ",
+    // ひねり
+    "使うほど使わなくなる","失敗しても楽しい","使うと少しだけ得をする"
+  ]}
+};
+const HINTS = [
+  "逆にしたら？（例：記録する→記録させない）","その人が一番困る瞬間を1つ思い浮かべたら？","10倍の人数で使ったら？","たった1人のためだけに作るなら？",
+  "お金をもらう側から考えたら？","子どもが遊びで使うとしたら？","1年後も使ってる理由は？","使った人が友達に話したくなる瞬間は？",
+  "今その人は代わりに何をしてる？","一番ダメなアイデアをわざと考えたら？","アナログ（紙・道具）でやるならどうする？","ほかの業界の当たり前を持ち込んだら？",
+  "毎日じゃなく人生で1回だけ使うなら？","課題の『原因』の方を解決したら？","家族・友達・他人、誰と一緒に使う？","有名なアプリの仕組みを1つ借りたら？",
+  "時間帯を限定したら？（朝だけ・夜だけ）","使う場所を限定したら？（トイレ・電車・お風呂）","感情（嬉しい・悔しい）をトリガーにしたら？","制約の1つを真逆にしたら？"
+];
+// メモ一覧を保存するときの名前（localStorage のキー）
+const KEY = "constraint-gacha-ideas";
+// ガチャの中身は BASE に書いたものだけを使う
+const AXES = BASE;
+// 以前の版の「自分で足したお題」がブラウザに残っていたら、もう使わないので消しておく
+try{ localStorage.removeItem("constraint-gacha-custom"); }catch(e){}
+const COLOR = {who:"#f6c23e",prob:"#4a90e2",rule:"#f2709c"};
+const state = {who:null,prob:null,rule:null};
+const kept = {who:false,prob:false,rule:false};
+let ruleOn = false, timerId = null, remain = 180, ideas = load(), turns = 0, busy = false;
+
+const $ = id => document.getElementById(id);
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+const keys = () => ruleOn ? ["who","prob","rule"] : ["who","prob"];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// ===== シャッフルバッグ方式の抽選 =====
+// トランプの山札と同じ考え方：全部をシャッフルして上から1枚ずつ引き、
+// 山札が空になったら作り直す。こうすると一巡するまで同じお題が出ない。
+const bags = {who:[],prob:[],rule:[]};
+
+// 配列をシャッフルした新しい配列を返す（フィッシャー–イェーツ法：偏りなく混ぜる定番の方法）
+function shuffled(arr){
+  const a = [...arr];
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// 種類 k（who/prob/rule）の山札から1つ引く
+function drawFrom(k){
+  // 山札が空なら、全お題をシャッフルして作り直す
+  if(bags[k].length === 0){
+    bags[k] = shuffled(AXES[k].items);
+    // 作り直した直後の1枚目が「今出ているお題」と同じなら、山札の一番下へ回す
+    if(bags[k].length > 1 && bags[k][bags[k].length - 1] === state[k]){
+      bags[k].unshift(bags[k].pop());
+    }
+  }
+  // 配列の末尾から取り出す（pop は末尾を取るので速い）
+  return bags[k].pop();
+}
+
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } }
+function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(ideas)); }catch(e){} }
+
+// ドームの中のカプセル
+(function(){
+  const spots = [[80,250,20,"who"],[122,256,-30,"prob"],[164,254,60,"who"],[206,248,-10,"rule"],[226,214,40,"who"],[100,214,-50,"prob"],[142,220,10,"rule"],[184,212,80,"prob"],[64,218,30,"prob"],[120,180,-20,"who"],[164,182,45,"prob"],[206,180,-60,"who"],[80,182,0,"rule"],[140,146,70,"prob"],[186,148,-35,"rule"],[104,146,25,"who"]];
+  $("pile").innerHTML = spots.map(([x,y,a,k]) => `<g transform="translate(${x} ${y}) rotate(${a})"><circle r="20" fill="#fff" stroke="#2b2340" stroke-width="3"/><path d="M-20 0 A20 20 0 0 1 20 0 Z" fill="${COLOR[k]}" stroke="#2b2340" stroke-width="3"/></g>`).join("");
+})();
+
+function renderTray(){
+  $("tray").innerHTML = keys().map(k => `
+    <div class="cap ${state[k]?"":"shut"} ${kept[k]?"kept":""}" data-k="${k}">
+      <div class="lid"></div>
+      <div class="slip"><span class="kind">${AXES[k].label}</span><span class="val">${state[k] ? esc(state[k]) : ""}</span></div>
+      <div class="bowl"></div>
+      <button class="keep" data-k="${k}" ${state[k]?"":"disabled"}>${kept[k]?"キープ中":"キープする"}</button>
+    </div>`).join("");
+  $("tray").querySelectorAll(".keep").forEach(b => b.onclick = () => { kept[b.dataset.k] = !kept[b.dataset.k]; renderTray(); });
+  renderCombo();
+}
+function renderCombo(){
+  const c = $("combo");
+  if(!keys().every(k => state[k])){ c.className = "combo wait"; c.textContent = "ハンドルを回すと、カプセルからお題が出てきます"; return; }
+  const m = k => `<b style="--m:${COLOR[k]}66">${esc(state[k])}</b>`;
+  c.className = "combo";
+  c.innerHTML = `${m("who")}の「${m("prob")}」を解決する。` + (ruleOn ? `<br>ただし、${m("rule")}。` : "");
+}
+
+function spin(){
+  if(busy) return;
+  const targets = keys().filter(k => !kept[k]);
+  if(!targets.length){ toast("全部キープ中です。どれか外してから回してください"); return; }
+  busy = true; $("spin").disabled = true; $("hintText").textContent = "";
+  turns++; $("handle").style.transform = `rotate(${turns*360}deg)`;
+  const pile = $("pile"); pile.classList.remove("shake"); void pile.getBBox(); pile.classList.add("shake");
+  targets.forEach(k => { const c = document.querySelector(`.cap[data-k="${k}"]`); c.classList.add("shut","wobble"); });
+  let done = 0;
+  targets.forEach((k,i) => {
+    setTimeout(() => {
+      // 山札から1枚引く（一巡するまで同じお題は出ない）
+      const next = drawFrom(k);
+      state[k] = next;
+      const c = document.querySelector(`.cap[data-k="${k}"]`);
+      c.querySelector(".val").textContent = next;
+      c.classList.remove("wobble","shut");
+      if(++done === targets.length){ setTimeout(() => { renderTray(); busy = false; $("spin").disabled = false; resetTimer(); }, 450); }
+    }, 800 + i*280);
+  });
+}
+
+function fmt(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; }
+function draw(){ $("time").textContent = fmt(Math.max(remain,0)); $("time").classList.toggle("warn", (timerId && remain <= 30) || remain <= 0); }
+function resetTimer(){ clearInterval(timerId); timerId = null; remain = +$("minutes").value; $("startBtn").textContent = "スタート"; $("price").textContent = `${remain/60}分`; draw(); }
+function toggleTimer(){
+  if(timerId){ clearInterval(timerId); timerId = null; $("startBtn").textContent = "再開"; return; }
+  if(remain <= 0) resetTimer();
+  $("startBtn").textContent = "止める"; $("memo").focus();
+  timerId = setInterval(() => {
+    remain--; draw();
+    if(remain <= 0){ clearInterval(timerId); timerId = null; $("startBtn").textContent = "もう一回"; draw(); toast("時間です。書けたところまで保存しよう"); }
+  }, 1000);
+}
+function toast(t){ const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2600); }
+
+function save(){
+  // 前後の空白を取り除いたメモ本文
+  const memo = $("memo").value.trim();
+  // お題が出ていないと「誰に・課題」を記録できないので止める
+  if(!keys().every(k => state[k])){ toast("先にハンドルを回してください"); return; }
+  if(!memo){ toast("メモを書くと保存できます"); return; }
+  // その時のお題（誰に・課題・縛り）とメモをセットで1件として記録する
+  const record = {
+    id: Date.now(),
+    who: state.who,
+    prob: state.prob,
+    rule: ruleOn ? state.rule : null,   // 縛りがOFFのときは記録しない
+    memo,
+    at: new Date().toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})
+  };
+  ideas.unshift(record);   // 新しいメモを一覧の先頭に入れる
+  persist(); renderList();
+  $("memo").value = "";    // 書いた欄を空に戻す
+  toast("メモを保存しました");
+}
+// 1件分のメモ本文を取り出す
+// 前の版は「名前(title)」と「本文(body)」に分かれていたので、それも1つのメモとしてつなげて表示する
+function memoText(it){
+  if(it.memo) return it.memo;
+  return [it.title, it.body].filter(Boolean).join("\n");
+}
+
+function renderList(){
+  $("count").textContent = ideas.length ? `${ideas.length}件` : "";
+  $("list").innerHTML = ideas.length ? ideas.map(it => `
+    <article class="entry">
+      <div class="pills"><span class="pill who">${esc(it.who)}</span><span class="pill prob">${esc(it.prob)}</span>${it.rule ? `<span class="pill rule">${esc(it.rule)}</span>` : ""}</div>
+      <p>${esc(memoText(it))}</p>
+      <div class="meta"><span>${esc(it.at)}</span><button class="del" data-id="${it.id}">消す</button></div>
+    </article>`).join("") : `<p class="blank">まだ空っぽです。1回回して、思いついたことをメモしてみよう</p>`;
+  $("list").querySelectorAll(".del").forEach(b => b.onclick = () => { ideas = ideas.filter(i => i.id !== +b.dataset.id); persist(); renderList(); });
+}
+function renderPool(){
+  const n = ["who","prob"].reduce((a,k)=>a*AXES[k].items.length,1) * (ruleOn ? AXES.rule.items.length : 1);
+  $("pool").textContent = `中身は全部で ${n.toLocaleString()} 通り`;
+}
+let lastHint = -1;
+$("hintBtn").onclick = () => { let i; do { i = Math.floor(Math.random()*HINTS.length); } while(i === lastHint); lastHint = i; $("hintText").textContent = HINTS[i]; };
+
+$("spin").onclick = spin;
+$("handle").onclick = spin;
+$("handle").addEventListener("keydown", e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); spin(); } });
+$("ruleOn").onchange = e => { ruleOn = e.target.checked; if(ruleOn && !state.rule) state.rule = drawFrom("rule"); renderTray(); renderPool(); };
+$("startBtn").onclick = toggleTimer;
+$("minutes").onchange = resetTimer;
+$("save").onclick = save;
+document.addEventListener("keydown", e => { if((e.ctrlKey||e.metaKey) && e.key === "Enter") save(); });
+
+renderTray(); renderList(); renderPool(); draw();
+</script>
+</body>
+</html>
