@@ -302,8 +302,14 @@ let ruleOn = false, timerId = null, remain = 180, ideas = load(), turns = 0, bus
 const $ = id => document.getElementById(id);
 const pick = arr => arr[Math.floor(Math.random()*arr.length)];
 const keys = () => ruleOn ? ["who","prob","rule"] : ["who","prob"];
-// HTMLの中に文字を入れる前に、特別な意味を持つ記号（& < > " '）を無害な形に置き換える
-const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// 画面の部品（HTML要素）を1つ作る小さな道具
+//   h("span", {className:"val"}, "中学生") → <span class="val">中学生</span>
+// 文字は textContent と同じ扱いで入るので、どんな文字でもHTMLとして動くことはない
+function h(tag, props = {}, ...children){
+  const el = Object.assign(document.createElement(tag), props);
+  el.append(...children.filter(c => c != null && c !== false));
+  return el;
+}
 // ===== シャッフルバッグ方式の抽選 =====
 // トランプの山札と同じ考え方：全部をシャッフルして上から1枚ずつ引き、
 // 山札が空になったら作り直す。こうすると一巡するまで同じお題が出ない。
@@ -363,14 +369,22 @@ function persist(){
 })();
 
 function renderTray(){
-  $("tray").innerHTML = keys().map(k => `
-    <div class="cap ${state[k]?"":"shut"} ${kept[k]?"kept":""}" data-k="${k}">
-      <div class="lid"></div>
-      <div class="slip"><span class="kind">${AXES[k].label}</span><span class="val">${state[k] ? esc(state[k]) : ""}</span></div>
-      <div class="bowl"></div>
-      <button class="keep" data-k="${k}" ${state[k]?"":"disabled"}>${kept[k]?"キープ中":"キープする"}</button>
-    </div>`).join("");
-  $("tray").querySelectorAll(".keep").forEach(b => b.onclick = () => { kept[b.dataset.k] = !kept[b.dataset.k]; renderTray(); });
+  $("tray").replaceChildren(...keys().map(k => {
+    // キープボタン（押すとキープ中⇔キープするを切り替える）
+    const keep = h("button", {className:"keep", disabled:!state[k], onclick:() => { kept[k] = !kept[k]; renderTray(); }},
+      kept[k] ? "キープ中" : "キープする");
+    keep.dataset.k = k;
+    // カプセル1個分
+    const cap = h("div", {className:["cap", state[k] ? "" : "shut", kept[k] ? "kept" : ""].filter(Boolean).join(" ")},
+      h("div", {className:"lid"}),
+      h("div", {className:"slip"},
+        h("span", {className:"kind"}, AXES[k].label),
+        h("span", {className:"val"}, state[k] || "")),
+      h("div", {className:"bowl"}),
+      keep);
+    cap.dataset.k = k;
+    return cap;
+  }));
   renderCombo();
 }
 function renderCombo(){
@@ -450,13 +464,21 @@ function memoText(it){
 
 function renderList(){
   $("count").textContent = ideas.length ? `${ideas.length}件` : "";
-  $("list").innerHTML = ideas.length ? ideas.map(it => `
-    <article class="entry">
-      <div class="pills"><span class="pill who">${esc(it.who)}</span><span class="pill prob">${esc(it.prob)}</span>${it.rule ? `<span class="pill rule">${esc(it.rule)}</span>` : ""}</div>
-      <p>${esc(memoText(it))}</p>
-      <div class="meta"><span>${esc(it.at)}</span><button class="del" data-id="${esc(it.id)}">消す</button></div>
-    </article>`).join("") : `<p class="blank">まだ空っぽです。1回回して、思いついたことをメモしてみよう</p>`;
-  $("list").querySelectorAll(".del").forEach(b => b.onclick = () => { ideas = ideas.filter(i => i.id !== +b.dataset.id); persist(); renderList(); });
+  if(!ideas.length){
+    $("list").replaceChildren(h("p", {className:"blank"}, "まだ空っぽです。1回回して、思いついたことをメモしてみよう"));
+    return;
+  }
+  $("list").replaceChildren(...ideas.map(it => h("article", {className:"entry"},
+    h("div", {className:"pills"},
+      h("span", {className:"pill who"}, it.who),
+      h("span", {className:"pill prob"}, it.prob),
+      it.rule && h("span", {className:"pill rule"}, it.rule)),
+    h("p", {}, memoText(it)),
+    h("div", {className:"meta"},
+      h("span", {}, it.at),
+      // 消すボタン：押したメモだけを一覧から取り除いて保存し直す
+      h("button", {className:"del", onclick:() => { ideas = ideas.filter(i => i.id !== it.id); persist(); renderList(); }}, "消す"))
+  )));
 }
 function renderPool(){
   const n = ["who","prob"].reduce((a,k)=>a*AXES[k].items.length,1) * (ruleOn ? AXES.rule.items.length : 1);
