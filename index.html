@@ -292,7 +292,8 @@ const KEY = "constraint-gacha-ideas";
 // ガチャの中身は BASE に書いたものだけを使う
 const AXES = BASE;
 // 以前の版の「自分で足したお題」がブラウザに残っていたら、もう使わないので消しておく
-try{ localStorage.removeItem("constraint-gacha-custom"); }catch(e){}
+// （消せなくてもアプリは問題なく動くので、利用者には知らせず記録だけ残す）
+try{ localStorage.removeItem("constraint-gacha-custom"); }catch(e){ console.warn("古いお題データを消せませんでした:", e); }
 const COLOR = {who:"#f6c23e",prob:"#4a90e2",rule:"#f2709c"};
 const state = {who:null,prob:null,rule:null};
 const kept = {who:false,prob:false,rule:false};
@@ -301,7 +302,8 @@ let ruleOn = false, timerId = null, remain = 180, ideas = load(), turns = 0, bus
 const $ = id => document.getElementById(id);
 const pick = arr => arr[Math.floor(Math.random()*arr.length)];
 const keys = () => ruleOn ? ["who","prob","rule"] : ["who","prob"];
-const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// HTMLの中に文字を入れる前に、特別な意味を持つ記号（& < > " '）を無害な形に置き換える
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 // ===== シャッフルバッグ方式の抽選 =====
 // トランプの山札と同じ考え方：全部をシャッフルして上から1枚ずつ引き、
 // 山札が空になったら作り直す。こうすると一巡するまで同じお題が出ない。
@@ -332,12 +334,32 @@ function drawFrom(k){
 }
 
 function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } }
-function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(ideas)); }catch(e){} }
+// メモ一覧を保存する。成功したら true、失敗したら利用者に知らせて false を返す
+function persist(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify(ideas));
+    return true;
+  }catch(e){
+    console.error("メモの保存に失敗しました:", e);
+    toast("保存に失敗しました。ブラウザの保存領域がいっぱいか、プライベートモードの可能性があります");
+    return false;
+  }
+}
 
 // ドームの中のカプセル
 (function(){
   const spots = [[80,250,20,"who"],[122,256,-30,"prob"],[164,254,60,"who"],[206,248,-10,"rule"],[226,214,40,"who"],[100,214,-50,"prob"],[142,220,10,"rule"],[184,212,80,"prob"],[64,218,30,"prob"],[120,180,-20,"who"],[164,182,45,"prob"],[206,180,-60,"who"],[80,182,0,"rule"],[140,146,70,"prob"],[186,148,-35,"rule"],[104,146,25,"who"]];
-  $("pile").innerHTML = spots.map(([x,y,a,k]) => `<g transform="translate(${x} ${y}) rotate(${a})"><circle r="20" fill="#fff" stroke="#2b2340" stroke-width="3"/><path d="M-20 0 A20 20 0 0 1 20 0 Z" fill="${COLOR[k]}" stroke="#2b2340" stroke-width="3"/></g>`).join("");
+  // 文字列のHTMLではなく、SVGの部品を1つずつ作って並べる
+  const NS = "http://www.w3.org/2000/svg";
+  const make = (tag, attrs) => { const el = document.createElementNS(NS, tag); for(const [n,v] of Object.entries(attrs)) el.setAttribute(n, v); return el; };
+  $("pile").replaceChildren(...spots.map(([x,y,a,k]) => {
+    const g = make("g", {transform:`translate(${x} ${y}) rotate(${a})`});
+    g.append(
+      make("circle", {r:"20", fill:"#fff", stroke:"#2b2340", "stroke-width":"3"}),
+      make("path", {d:"M-20 0 A20 20 0 0 1 20 0 Z", fill:COLOR[k], stroke:"#2b2340", "stroke-width":"3"})
+    );
+    return g;
+  }));
 })();
 
 function renderTray(){
@@ -354,9 +376,12 @@ function renderTray(){
 function renderCombo(){
   const c = $("combo");
   if(!keys().every(k => state[k])){ c.className = "combo wait"; c.textContent = "ハンドルを回すと、カプセルからお題が出てきます"; return; }
-  const m = k => `<b style="--m:${COLOR[k]}66">${esc(state[k])}</b>`;
+  // お題の文字は textContent で入れるので、HTMLとして解釈されることはない
+  const m = k => { const b = document.createElement("b"); b.style.setProperty("--m", `${COLOR[k]}66`); b.textContent = state[k]; return b; };
   c.className = "combo";
-  c.innerHTML = `${m("who")}の「${m("prob")}」を解決する。` + (ruleOn ? `<br>ただし、${m("rule")}。` : "");
+  const parts = [m("who"), "の「", m("prob"), "」を解決する。"];
+  if(ruleOn) parts.push(document.createElement("br"), "ただし、", m("rule"), "。");
+  c.replaceChildren(...parts);
 }
 
 function spin(){
@@ -411,7 +436,8 @@ function save(){
     at: new Date().toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})
   };
   ideas.unshift(record);   // 新しいメモを一覧の先頭に入れる
-  persist(); renderList();
+  const ok = persist(); renderList();
+  if(!ok) return;          // 保存に失敗したときは、書いたメモを消さずに残しておく
   $("memo").value = "";    // 書いた欄を空に戻す
   toast("メモを保存しました");
 }
@@ -428,7 +454,7 @@ function renderList(){
     <article class="entry">
       <div class="pills"><span class="pill who">${esc(it.who)}</span><span class="pill prob">${esc(it.prob)}</span>${it.rule ? `<span class="pill rule">${esc(it.rule)}</span>` : ""}</div>
       <p>${esc(memoText(it))}</p>
-      <div class="meta"><span>${esc(it.at)}</span><button class="del" data-id="${it.id}">消す</button></div>
+      <div class="meta"><span>${esc(it.at)}</span><button class="del" data-id="${esc(it.id)}">消す</button></div>
     </article>`).join("") : `<p class="blank">まだ空っぽです。1回回して、思いついたことをメモしてみよう</p>`;
   $("list").querySelectorAll(".del").forEach(b => b.onclick = () => { ideas = ideas.filter(i => i.id !== +b.dataset.id); persist(); renderList(); });
 }
